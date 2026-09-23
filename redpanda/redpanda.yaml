@@ -1,0 +1,50 @@
+redpanda:
+  data_directory: /var/lib/redpanda/data
+  empty_seed_starts_cluster: true
+  seed_servers: []
+  rpc_server:
+    address: 0.0.0.0
+    port: 33145
+  advertised_rpc_api:
+    address: redpanda
+    port: 33145
+  kafka_api:
+    - name: internal
+      address: 0.0.0.0
+      port: 9092
+      authentication_method: sasl
+    - name: external
+      address: 0.0.0.0
+      port: 19092
+      authentication_method: sasl
+  advertised_kafka_api:
+    - name: internal
+      address: redpanda
+      port: 9092
+    - name: external
+      address: localhost
+      port: 19092
+  admin:
+    - address: 0.0.0.0
+      port: 9644
+
+schema_registry:
+  schema_registry_api:
+    - name: internal
+      address: 0.0.0.0
+      port: 8081
+      authentication_method: http_basic
+    - name: external
+      address: 0.0.0.0
+      port: 18081
+      authentication_method: http_basic
+
+rpk:
+  kafka_api:
+    brokers: ["localhost:9092"]
+    sasl:
+      user: admin
+      password: admin-secret
+      mechanism: SCRAM-SHA-256
+  admin_api:
+    addresses: ["localhost:9644"]

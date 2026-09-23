@@ -1,0 +1,36 @@
+# Redpanda Console v3 with OIDC login and user impersonation on every API.
+# The logged-in user's Keycloak access token is forwarded to Redpanda, so what
+# they can see is decided by Redpanda ACLs / roles / Group: principals —
+# the same model a Cloud data plane uses.
+kafka:
+  brokers: ["redpanda:9092"]
+  sasl:
+    enabled: true
+    impersonateUser: true
+
+schemaRegistry:
+  enabled: true
+  urls: ["http://redpanda:8081"]
+  authentication:
+    impersonateUser: true
+
+redpanda:
+  adminApi:
+    enabled: true
+    urls: ["http://redpanda:9644"]
+    authentication:
+      impersonateUser: true
+
+authentication:
+  jwtSigningKey: "local-demo-only-signing-key-0123456789abcdef"
+  useSecureCookies: false
+  basic:
+    enabled: true
+  oidc:
+    enabled: true
+    issuerUrl: "http://localhost:8180/realms/acme"
+    clientId: "console"
+    clientSecret: "console-secret"
+    redirectUrl: "http://localhost:8080/auth/callbacks/oidc"
+    principalMapping: "$.preferred_username"
+    accessType: "online"

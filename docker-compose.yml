@@ -1,0 +1,96 @@
+name: rbac-reference
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    # Frontend URL (token `iss`) is localhost:8180 so tokens fetched from the host
+    # validate inside the cluster; backchannel URLs (JWKS, token endpoint) resolve
+    # per-request, so Redpanda and Console reach Keycloak at keycloak:80.
+    command:
+      - start-dev
+      - --import-realm
+      - --http-port=80
+      - --hostname=http://localhost:8180
+      - --hostname-backchannel-dynamic=true
+      - --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "8180:80"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_VERSION:-v26.2.2}
+    container_name: redpanda
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        cp /config/redpanda.yaml /etc/redpanda/redpanda.yaml
+        cp /config/.bootstrap.yaml /etc/redpanda/.bootstrap.yaml
+        exec /entrypoint.sh redpanda start --mode dev-container --smp 1 --default-log-level=info
+    environment:
+      # Bootstrap SCRAM superuser (listed in superusers in .bootstrap.yaml)
+      RP_BOOTSTRAP_USER: "admin:admin-secret:SCRAM-SHA-256"
+    volumes:
+      - ./redpanda/redpanda.yaml:/config/redpanda.yaml:ro
+      - ./redpanda/bootstrap.yaml:/config/.bootstrap.yaml:ro
+      - redpanda-data:/var/lib/redpanda/data
+    ports:
+      - "19092:19092"   # Kafka (external, SASL)
+      - "18081:18081"   # Schema Registry (external, HTTP basic / OIDC bearer)
+      - "19644:9644"    # Admin API (auth required)
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health -X user=admin -X pass=admin-secret -X sasl.mechanism=SCRAM-SHA-256 | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Console must see Keycloak at the same URL the browser does (localhost:8180)
+  # or OIDC issuer validation fails. This sidecar owns Console's network
+  # namespace and forwards localhost:8180 -> keycloak:80.
+  console-net:
+    image: alpine/socat:1.8.0.0
+    container_name: console-net
+    command: ["TCP-LISTEN:8180,fork,reuseaddr", "TCP:keycloak:80"]
+    ports:
+      - "8080:8080"
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:${CONSOLE_VERSION:-v3.11.0}
+    container_name: console
+    network_mode: "service:console-net"
+    environment:
+      CONFIG_FILEPATH: /etc/console/config.yaml
+    volumes:
+      - ./console/config.yaml:/etc/console/config.yaml:ro
+    depends_on:
+      console-net:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+
+  # Python client used by tests that need features rpk doesn't expose
+  # (transactional producer, toggling idempotence).
+  clients:
+    build: ./clients
+    container_name: clients
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./clients:/app:ro
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+volumes:
+  redpanda-data:

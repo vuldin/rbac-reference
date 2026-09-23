@@ -1,0 +1,8 @@
+.env
+*.license
+redpanda.license
+cloud/terraform/.terraform/
+cloud/terraform/.terraform.lock.hcl
+cloud/terraform/*.tfstate*
+cloud/terraform/*.auto.tfvars
+results/

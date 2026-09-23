@@ -1,0 +1,183 @@
+{
+  "realm": "acme",
+  "enabled": true,
+  "accessTokenLifespan": 60,
+  "ssoSessionIdleTimeout": 1800,
+  "clients": [
+    {
+      "clientId": "rp-cli",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "rp-cli-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "audience-redpanda",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "redpanda",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "console",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "console-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-redpanda",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "redpanda",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "rp-prod-observer"
+    },
+    {
+      "name": "rp-prod-reader"
+    },
+    {
+      "name": "rp-prod-admin"
+    },
+    {
+      "name": "Application - Redpanda - Prod - Reader"
+    }
+  ],
+  "users": [
+    {
+      "username": "olivia",
+      "email": "olivia@example.com",
+      "firstName": "Olivia",
+      "lastName": "Observer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/rp-prod-observer"
+      ]
+    },
+    {
+      "username": "dana",
+      "email": "dana@example.com",
+      "firstName": "Dana",
+      "lastName": "Reader",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/rp-prod-reader"
+      ]
+    },
+    {
+      "username": "sam",
+      "email": "sam@example.com",
+      "firstName": "Sam",
+      "lastName": "Spaces",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/Application - Redpanda - Prod - Reader"
+      ]
+    },
+    {
+      "username": "alex",
+      "email": "alex@example.com",
+      "firstName": "Alex",
+      "lastName": "Breakglass",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/rp-prod-admin"
+      ]
+    },
+    {
+      "username": "nora",
+      "email": "nora@example.com",
+      "firstName": "Nora",
+      "lastName": "Nogroups",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": []
+    }
+  ]
+}
