@@ -1,7 +1,7 @@
-# Redpanda Cloud RBAC/GBAC reference: tested locally
+# Redpanda Cloud RBAC/GBAC reference tested locally
 
-A reproducible lab for checking a **group-based access model for Redpanda
-Cloud (BYOC/Dedicated)** before you roll it out. It targets a multi-environment
+A reproducible lab for checking a group-based access model for Redpanda
+Cloud (BYOC/Dedicated) before you roll it out. It targets a multi-environment
 estate where prod holds sensitive data (e.g. PHI), humans come in through
 Okta SSO, and workloads use service accounts.
 
@@ -53,34 +53,32 @@ Redpanda Cloud authorizes access in two places:
 | Question | Local? | Where |
 |---|---|---|
 | 1. Two-role read tier (Viewer + `<env>_reader`) | Data-plane half | `tests/q2_tiers.sh` |
-| 2. Can an Observer see lag without reading messages? | ✅ (ACL level) | `tests/q2_tiers.sh`, `tests/console_impersonation.sh` |
-| 3. Is expiring IdP group membership OK for time-bound PHI read? | ✅ | `tests/q3_token_window.sh` |
-| 4. Does a resource-group binding isolate prod? | ❌ Cloud only; the union risk is tested | `cloud/q4_rg_isolation_test_plan.md`, `tests/q4_union.sh` |
+| 2. Can an Observer see lag without reading messages? | yes (ACL level) | `tests/q2_tiers.sh`, `tests/console_impersonation.sh` |
+| 3. Is expiring IdP group membership OK for time-bound PHI read? | yes | `tests/q3_token_window.sh` |
+| 4. Does a resource-group binding isolate prod? | no, cloud only; the union risk is tested | `cloud/q4_rg_isolation_test_plan.md`, `tests/q4_union.sh` |
 | 5. Managing access as code | Partly | `cloud/terraform/`, `cloud/controlplane-api/` |
-| 6. Read-only Schema Registry grant | ✅ | `tests/q6_schema_registry.sh` |
-| 7. Break-glass and audit | ✅ | `tests/q7_audit.sh` |
-| 8. Over- or under-scoped service accounts / group names | ✅ | `tests/q8_service_accounts.sh` |
-| (not asked) IdP signing-key rotation | ✅ | `tests/jwks_rotation.sh` |
+| 6. Read-only Schema Registry grant | yes | `tests/q6_schema_registry.sh` |
+| 7. Break-glass and audit | yes | `tests/q7_audit.sh` |
+| 8. Over- or under-scoped service accounts / group names | yes | `tests/q8_service_accounts.sh` |
+| (not asked) IdP signing-key rotation | yes | `tests/jwks_rotation.sh` |
 
 ## Answers
 
 **1. Two-role read tier.** Yes, that's the intended pattern. On BYOC/Dedicated
 the predefined Reader/Writer/Admin roles include data-plane permissions, so
-"console, no messages" needs a **custom role with only Control Plane
-permissions**. The reader tier's data-plane half is a per-cluster Redpanda role
-with IdP groups as members. Data-plane roles are **cluster-scoped**: create them
-on every cluster in the environment (`cloud/terraform/` is written to be
+"console, no messages" needs a custom role with only Control Plane
+permissions. The reader tier's data-plane half is a per-cluster Redpanda role
+with IdP groups as members. Data-plane roles are cluster-scoped (`cloud/terraform/` is written to be
 applied per cluster).
 
 **2. Lag without messages.** On the data plane, `DESCRIBE` on topics and
 consumer groups is enough to see lag, and `READ` isn't needed. Verified with
-rpk and through Console with user impersonation. What a *control-plane-only*
-Cloud Viewer sees in the Cloud Console still needs checking in Cloud. In a
+rpk and through Console with user impersonation. In a
 local Console, an Observer who opens the Messages tab gets *"request was
 cancelled while waiting for messages"*, not a clear permission error.
 
 **3. Time-bound PHI read.** Expiring Okta group membership works, but
-**revocation isn't instant**. The groups claim is read from the token at
+revocation isn't instant. The groups claim is read from the token at
 authentication, so a token issued before removal keeps working, on new
 connections too, until it expires. A new token is denied immediately. Keep the
 Redpanda Okta app's access-token lifetime short (e.g. 5–15 min, versus Okta's
@@ -88,15 +86,14 @@ Redpanda Okta app's access-token lifetime short (e.g. 5–15 min, versus Okta's
 at expiry.
 
 **4. Resource-group isolation.** A Cloud control-plane question; use the test
-plan in `cloud/`. The failure mode that bites in practice is tested locally:
-**bindings are a union**. If the old Organization-scoped Reader/Writer/Admin
+plan in `cloud/`. Keep in mind that bindings are a union. If the old Organization-scoped Reader/Writer/Admin
 groups are still bound, an Observer silently becomes a Reader. Removing them is
-part of the cutover, not a follow-up.
+part of the cutover.
 
 **5. Access as code.** The `redpanda` Terraform provider (v2.4.0) covers the
-**data plane**: `redpanda_role`, `redpanda_role_assignment` (`Group:`
+data plane: `redpanda_role`, `redpanda_role_assignment` (`Group:`
 principals supported), `redpanda_acl` and `redpanda_schema_registry_acl`. It
-has no resource for **control-plane custom roles or group role bindings**
+has no resource for control-plane custom roles or group role bindings
 (`redpanda_service_account` can carry bindings at creation only). The provider
 docs refer to a `redpanda_role_binding` resource that isn't in v2.4.0 yet. For
 now, use the Control Plane API (`/v1/roles`, `/v1/role-bindings`); see
@@ -104,8 +101,8 @@ now, use the Control Plane API (`/v1/roles`, `/v1/role-bindings`); see
 
 **6. Schema Registry read-only.** The proposed `subject: Read, Describe` +
 `registry: Describe` can't read compatibility settings. Add
-**`DescribeConfigs` on subject and registry**, which matches the predefined
-Reader. Make sure `schema_registry_enable_authorization` is **on**. With it
+`DescribeConfigs` on subject and registry which matches the predefined
+Reader. Make sure `schema_registry_enable_authorization` is on. With it
 off, a user with no ACLs at all can delete subjects.
 
 **7. Break-glass and audit.** Use the Okta group with approval, a short
@@ -116,13 +113,13 @@ denied attempts too. The audit topic keeps 7 days, so ship it to your
 SIEM/Datadog. See FINDINGS.md for a known issue with `audit_excluded_principals`.
 
 **8. Scoping.**
-- Consumers need **READ on their consumer group** (prefixed works), not just
+- Consumers need READ on their consumer group (prefixed works), not just
   the topic.
 - `IDEMPOTENT_WRITE` isn't needed; topic `WRITE` is enough for idempotent
   producers.
 - Transactional producers need `TRANSACTIONAL_ID` WRITE+DESCRIBE, and a prefix
   pattern works.
-- **Okta group names with spaces work** as `Group:` principals.
+- Okta group names with spaces work as `Group:` principals.
 - Prefixed topic ACLs cover new topics with no ACL change.
 
 ## Layout
